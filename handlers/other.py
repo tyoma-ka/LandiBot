@@ -14,5 +14,7 @@ router = Router()
 
 
 @router.message(F.text)
-async def unknown_command(message: Message):
+async def unknown_command(message: Message,
+                          state: FSMContext):
     await message.answer(localization.get_text('idk', message.from_user.language_code))
+    await state.clear()

@@ -28,8 +28,17 @@ def make_start_keyboard(language) -> ReplyKeyboardMarkup:
             text=localization.get_text('my_lessons', language),
             callback_data="my_lessons"),
         KeyboardButton(
+            text=localization.get_text('join', language),
+            callback_data="join"),
+        KeyboardButton(
+            text=localization.get_text('leave', language),
+            callback_data="leave"),
+        KeyboardButton(
             text=localization.get_text('info', language),
-            callback_data="info")
+            callback_data="info"),
+        KeyboardButton(
+            text=localization.get_text('cancel_name2', language),
+            callback_data="cancel")
     )
     keyboard.adjust(2)
     return keyboard.as_markup(resize_keyboard=True)

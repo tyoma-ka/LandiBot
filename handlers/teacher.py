@@ -79,7 +79,8 @@ async def cmd_start(message: Message):
 @router.message(StateFilter(None), TextFilter('info'))
 @router.message(StateFilter(None), Command("info"))
 async def cmd_start(message: Message):
-    await message.answer(localization.get_text('teacher_info', message.from_user.language_code))
+    await message.answer(localization.get_text('teacher_info', message.from_user.language_code),
+                         reply_markup=kb_user.make_teacher_keyboard(message.from_user.language_code))
 
 
 @router.message(StateFilter(None), TextFilter('add_timetable'))
@@ -231,18 +232,10 @@ async def kick(
 @router.message(StateFilter(None), Command("timetable"))
 async def cmd_view_timetable(message: Message):
     data = lessonformat.format_schedule_by_day(db.get_timetable_by_week(), message.from_user.language_code)
+    # one more week forward
+    data += lessonformat.format_schedule_by_day(db.get_timetable_by_week(1), message.from_user.language_code)
     await message.answer(
         f"{localization.get_text('current_timetable', message.from_user.language_code)}\n{localization.get_text('propose_edit_timetable', message.from_user.language_code)}\n{data}")
-
-
-@router.message(StateFilter(None), Command("edit")) # TODO: do this command
-async def cmd_edit_lesson(
-        message: Message,
-        command: CommandObject):
-    if command.args is None:
-        await message.answer(f"{localization.get_text('no_lesson_id_for_edit', message.from_user.language_code)}")
-        return
-    lesson_mem = command.args
 
 
 @router.message(StateFilter(None), Command("show"))  # TODO: сделать нормальное определение ошибок.не показывать что попало

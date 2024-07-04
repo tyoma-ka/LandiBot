@@ -17,7 +17,7 @@ def get_week_start_end_dates(target_date):
     """
     shifted_date = target_date + timedelta(days=2)
     start_of_week = target_date - timedelta(days=shifted_date.weekday(), hours=shifted_date.hour, minutes=shifted_date.minute, seconds=shifted_date.second)
-    end_of_week = start_of_week + timedelta(days=6)
+    end_of_week = start_of_week + timedelta(days=7)
     return start_of_week, end_of_week
 
 
@@ -72,6 +72,19 @@ def check_time_is_future(event_date_str, formating='%Y-%m-%dT%H:%M:%S'):
     return True
 
 
+def check_week_is_current(event_date_str, formating='%Y-%m-%dT%H:%M:%S'):
+    if not is_iso_format(event_date_str):
+        return False
+    tz = pytz.timezone('Europe/Bratislava')
+    event_date = datetime.strptime(event_date_str, formating)
+    event_date = tz.localize(event_date)
+    dt_current = get_current_time_bratislava()
+    start_day_event = get_week_start_end_dates(event_date)[0].day
+    start_day_current = get_week_start_end_dates(dt_current)[0].day
+    return start_day_event == start_day_current
+
+
+
 def get_weekday(event_date_str):
     date_time = datetime.fromisoformat(event_date_str)
     day_of_week = calendar.day_name[date_time.weekday()]
@@ -114,4 +127,4 @@ def reformat_datetime_to(date_string, from_format, to_format):
 
 
 if __name__ == '__main__':
-    print(parse_datetime_object('2024-06-29T13:00:00', '%Y-%m-%dT%H:%M:%S').strftime("%d.%m"))
+    print(check_week_is_current("2024-07-01", "%Y-%m-%d"))

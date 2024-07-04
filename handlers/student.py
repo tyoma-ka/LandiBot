@@ -22,6 +22,10 @@ class JoinLesson(StatesGroup):
     are_you_sure = State()
 
 
+class LeaveLesson(StatesGroup):
+    leaving_lesson = State()
+
+
 router = Router()
 router.message.filter(
     UserFilter(user_type="Student")
@@ -38,10 +42,18 @@ async def cmd_start(message: Message, state: FSMContext):
     )
 
 
-@router.message(TextFilter('info'))
+@router.message(Command(commands=["cancel"]))
+@router.message(TextFilter('cancel_name'))
+async def cmd_cancel(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(localization.get_text('cancel', message.from_user.language_code))
+
+
+@router.message(StateFilter(None), TextFilter('info'))
 @router.message(StateFilter(None), Command("info"))
 async def cmd_info(message: Message):
-    await message.answer(localization.get_text('student_info', message.from_user.language_code))
+    await message.answer(localization.get_text('student_info', message.from_user.language_code),
+                         reply_markup=kb_user.make_start_keyboard(message.from_user.language_code))
 
 
 @router.message(StateFilter(None), Command("teacher"))
@@ -60,7 +72,7 @@ async def cmd_admin(
                          reply_markup=kb_user.make_teacher_keyboard(message.from_user.language_code))
 
 
-@router.message(TextFilter('timetable'))
+@router.message(StateFilter(None), TextFilter('timetable'))
 @router.message(StateFilter(None), Command("timetable"))
 async def cmd_view_timetable(message: Message):
     data = lessonformat.format_schedule_by_day(db.get_timetable_by_week(), message.from_user.language_code)
@@ -68,65 +80,95 @@ async def cmd_view_timetable(message: Message):
         f"{localization.get_text('current_timetable', message.from_user.language_code)}\n{localization.get_text('ask_register_lesson', message.from_user.language_code)}\n{data}")
 
 
-@router.callback_query(F.data == "timetable")
-async def timetable_callback(callback: CallbackQuery):
-    data = lessonformat.format_schedule_by_day(db.get_timetable_by_week(), callback.from_user.language_code)
-    await callback.message.answer(
-        f"{localization.get_text('current_timetable', callback.from_user.language_code)}\n{localization.get_text('ask_register_lesson', callback.from_user.language_code)}\n{data}")
-    await callback.answer()
-
-
+@router.message(StateFilter(None), TextFilter('join'))
 @router.message(StateFilter(None), Command("join"))
 async def cmd_join_lesson(
         message: Message,
-        command: CommandObject):
-    if command.args is None:
-        await message.answer(f"{localization.get_text('error', message.from_user.language_code)}{localization.get_text('no_lesson_id', message.from_user.language_code)}")
-        return
-    lesson_id = command.args
+        state: FSMContext):
+    await message.answer(localization.get_text('ask_lesson_number', message.from_user.language_code))
+    await state.set_state(JoinLesson.joining_lesson)
+
+
+@router.message(JoinLesson.joining_lesson)
+async def cmd_check_joining_lesson(
+        message: Message,
+        state: FSMContext):
+    lesson_id = message.text
     if not lesson_id.isdigit():
         await message.answer(localization.get_text('wrong_lesson_id', message.from_user.language_code))
+        await state.clear()
         return
 
     lesson = db.get_lesson_by_id(lesson_id)
     if not lesson:
         await message.answer(f"{localization.get_text('wrong_lesson_id', message.from_user.language_code)}")
+        await state.clear()
         return
     lesson = lesson[0]
     lesson_id, date_time_str, lesson_name, available_spots = lesson
+    if not timeformat.check_week_is_current(date_time_str):
+        await message.answer(f"{localization.get_text('wrong_lesson_id', message.from_user.language_code)}")
+        await state.clear()
+        return
     if not timeformat.check_time_is_future(date_time_str):
         await message.answer(f"{localization.get_text('lesson_is_in_past', message.from_user.language_code)}")
         return
+
     number_of_registrations = db.count_registrations_for_lesson(lesson_id)
     max_number = available_spots
     if db.check_student_registration_by_id(message.from_user.id, lesson_id):
         await message.answer(localization.get_text('already_registered_for_lesson', message.from_user.language_code))
+        await state.clear()
         return
     if max_number - number_of_registrations <= 0:
         await message.answer(f"{localization.get_text('no_places_left', message.from_user.language_code)}")
+        await state.clear()
         return
-    res = db.register_student_for_lesson(message.from_user.id, lesson_id)
-    if res != 'ok':
-        await message.answer(f"{localization.get_text('error', message.from_user.language_code)}{res}")
-        return
+
+    storage_data = {"lesson": lesson}
+    await state.update_data(storage_data)
     await message.answer(
-        f"{localization.get_text('successful_registration_for_lesson', message.from_user.language_code)}:\n📆 {localization.get_text(timeformat.get_weekday(lesson[1]).lower(), message.from_user.language_code)}\n{lessonformat.formate_lesson(lesson, message.from_user.language_code)}")
+        text=f"{localization.get_text('are_you_sure_join_lesson', message.from_user.language_code)}\n📆 <b>{timeformat.reformat_datetime_to(date_time_str, '%Y-%m-%dT%H:%M:%S', '%d.%m')} ({localization.get_text(timeformat.get_weekday(lesson[1]).lower(), message.from_user.language_code)})</b>\n{lessonformat.formate_lesson(lesson, message.from_user.language_code)}",
+        reply_markup=kb_user.make_yes_no_keyboard(message.from_user.language_code))
+    await state.set_state(JoinLesson.are_you_sure)
 
 
-@router.callback_query(F.data == "my_lessons")
-async def my_lessons_callback(callback: CallbackQuery):
-    lessons_of_student = db.get_lessons_of_student(callback.from_user.id)
-    formated_schedule = lessonformat.format_schedule_by_day(lessons_of_student, callback.from_user.language_code, False)
-    if formated_schedule == '\n':
-        answer_string = f"{localization.get_text('no_lessons_to_show', callback.from_user.language_code)}"
-    else:
-        answer_string = f"{localization.get_text('your_lessons', callback.from_user.language_code)}\n{formated_schedule}\n\n{localization.get_text('propose_leave_lesson', callback.from_user.language_code)}"
-    await callback.message.answer(answer_string)
+@router.callback_query(JoinLesson.are_you_sure, F.data == 'yes')
+async def cmd_join_lesson(
+        callback: CallbackQuery,
+        state: FSMContext):
+    storage_data = await state.get_data()
+    lesson = storage_data["lesson"]
+    lesson_id, date_time_str, lesson_name, available_spots = lesson
+    if not lesson:
+        return await callback.answer()
+    res = db.register_student_for_lesson(callback.from_user.id, lesson_id)
+    if res != 'ok':
+        await callback.message.answer(f"{localization.get_text('error', callback.from_user.language_code)}{res}")
+        return
+    await callback.message.answer(
+        f"{localization.get_text('successful_registration_for_lesson', callback.from_user.language_code)}")
+    await state.clear()
     await callback.answer()
 
 
-@router.message(TextFilter('my_lessons'))
-@router.message(Command("my_lessons"))
+@router.callback_query(JoinLesson.are_you_sure, F.data == 'no')
+async def reject_joining(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.answer(localization.get_text('lesson_joining_cancel', callback.from_user.language_code))
+    await callback.answer()
+
+
+@router.message(JoinLesson.are_you_sure)
+async def cmd_cancel(
+        message: Message,
+        state: FSMContext):
+    await state.clear()
+    await message.answer(localization.get_text('lesson_joining_cancel', message.from_user.language_code))
+
+
+@router.message(StateFilter(None), TextFilter('my_lessons'))
+@router.message(StateFilter(None), Command("my_lessons"))
 async def cmd_my_lessons(message: Message):
     lessons_of_student = db.get_lessons_of_student(message.from_user.id)
     formated_schedule = lessonformat.format_schedule_by_day(lessons_of_student, message.from_user.language_code, False)
@@ -137,14 +179,20 @@ async def cmd_my_lessons(message: Message):
     await message.answer(answer_string)
 
 
-@router.message(Command("leave"))
+@router.message(StateFilter(None), TextFilter('leave'))
+@router.message(StateFilter(None), Command("leave"))
 async def cmd_leave_lesson(
         message: Message,
-        command: CommandObject):
-    if command.args is None:
-        await message.answer(f"{localization.get_text('wrong_leave_format', message.from_user.language_code)}")
-        return
-    lesson_id = command.args
+        state: FSMContext):
+    await message.answer(localization.get_text('ask_lesson_leave_number', message.from_user.language_code))
+    await state.set_state(LeaveLesson.leaving_lesson)
+
+
+@router.message(LeaveLesson.leaving_lesson)
+async def cmd_check_leaving_lesson(
+        message: Message,
+        state: FSMContext):
+    lesson_id = message.text
     user_id = message.from_user.id
     if not lesson_id.isdigit():
         await message.answer(localization.get_text('wrong_lesson_id', message.from_user.language_code))
@@ -152,10 +200,16 @@ async def cmd_leave_lesson(
     res = db.unregister_student_for_lesson(user_id, lesson_id)
     if res == 'no lesson registered error':
         await message.answer(f"{localization.get_text('wrong_leave_lesson', message.from_user.language_code)}")
+        await state.clear()
+        return
     if res == "can't unregister lesson":
         await message.answer(f"{localization.get_text('impossible_unregister', message.from_user.language_code)}")
+        await state.clear()
+        return
     if res == 'ok':
-        await message.answer(f"{localization.get_text('successful_unregister_for_lesson', message.from_user.language_code)}{lesson_id}")
+        await message.answer(
+            f"{localization.get_text('successful_unregister_for_lesson', message.from_user.language_code)}{lesson_id}")
+    await state.clear()
 
 
 

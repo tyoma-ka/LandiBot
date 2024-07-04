@@ -9,4 +9,5 @@ class TextFilter(BaseFilter):
         self.text = text
 
     async def __call__(self, message: Message) -> bool:
-        return message.text.lower() == localization.get_text(self.text, message.from_user.language_code).lower()
+        words = {word.lower() for word in localization.get_text(self.text)}
+        return message.text.lower() in words
