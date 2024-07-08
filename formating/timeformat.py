@@ -39,7 +39,7 @@ def filter_events_by_week(events, week_start, week_end):
 
 def is_iso_format(date_string):
     try:
-        # Try to parse the date string using the fromisoformat method
+        datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S')
         datetime.fromisoformat(date_string)
         return True
     except ValueError:

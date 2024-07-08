@@ -189,14 +189,14 @@ class Database:
 
     def get_students_for_lesson(self, lesson_id):
         self.sql.execute("""
-                            SELECT u.id, u.name, u.surname, l.id, l.lessonname, l.datetime, l.maxstudents FROM registrations AS r
+                            SELECT u.id, u.name, u.surname, u.username, l.id, l.lessonname, l.datetime, l.maxstudents FROM registrations AS r
                             JOIN lessons AS l ON r.lesson_id = l.id
                             JOIN 
                             (
-                                SELECT id, name, surname 
+                                SELECT id, name, surname, username
                                 FROM users
                                 UNION 
-                                SELECT id, name, surname 
+                                SELECT id, name, surname, username
                                 FROM leftusers
                             ) AS u
                             ON r.student_id = u.id

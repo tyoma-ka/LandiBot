@@ -57,6 +57,9 @@ def make_teacher_keyboard(language) -> ReplyKeyboardMarkup:
             text=localization.get_text('students', language),
             callback_data="students"),
         KeyboardButton(
+            text=localization.get_text('students_for_lesson', language),
+            callback_data="show"),
+        KeyboardButton(
             text=localization.get_text('remove_day', language),
             callback_data="remove_day"),
         KeyboardButton(

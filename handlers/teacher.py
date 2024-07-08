@@ -46,6 +46,10 @@ class ChooseLessonNumber(StatesGroup):
     delete_lesson_number = State()
 
 
+class ShowStudentsForLesson(StatesGroup):
+    choosing_lesson_number = State()
+
+
 class ChooseLessonEditNumber(StatesGroup):
     choosing_lesson_number = State()
     choosing_what_to_edit = State()
@@ -235,20 +239,48 @@ async def cmd_view_timetable(message: Message):
     # one more week forward
     data += lessonformat.format_schedule_by_day(db.get_timetable_by_week(1), message.from_user.language_code)
     await message.answer(
-        f"{localization.get_text('current_timetable', message.from_user.language_code)}\n{localization.get_text('propose_edit_timetable', message.from_user.language_code)}\n{data}")
+        f"{localization.get_text('teacher_timetable', message.from_user.language_code)}\n{data}")
 
 
+@router.message(StateFilter(None), TextFilter('students_for_lesson'))
 @router.message(StateFilter(None), Command("show"))  # TODO: сделать нормальное определение ошибок.не показывать что попало
+async def cmd_get_students_for_lesson(
+        message: Message,
+        state: FSMContext):
+    await message.answer(localization.get_text('ask_show_lesson_number', message.from_user.language_code))
+    await state.set_state(ShowStudentsForLesson.choosing_lesson_number)
+
+
+@router.message(ShowStudentsForLesson.choosing_lesson_number)
 async def get_students_for_lesson(
         message: Message,
-        command: CommandObject):
-    if command.args is None:
-        await message.answer(f"{localization.get_text('no_lesson_id_for_showing', message.from_user.language_code)}")
+        state: FSMContext):
+    lesson_id = message.text
+
+    # lesson = db.get_lesson_by_id(lesson_id)
+    #     if not lesson:
+    #         await message.answer(f"{localization.get_text('wrong_lesson_id', message.from_user.language_code)}")
+    #         return
+    #     lesson = lesson[0]
+    #     storage_data = {"lesson": lesson}
+    #     await state.update_data(storage_data)
+    #     await message.answer(
+    #             text=f"{localization.get_text('are_you_sure_delete_lesson', message.from_user.language_code)}\n📆 {localization.get_text(timeformat.get_weekday(lesson[1]).lower(), message.from_user.language_code)}\n{lessonformat.formate_lesson(lesson, message.from_user.language_code)}",
+    #             reply_markup=kb_user.make_yes_no_keyboard(message.from_user.language_code))
+    lesson = db.get_lesson_by_id(lesson_id)
+    if not lesson:
+        await message.answer(f"{localization.get_text('wrong_lesson_id', message.from_user.language_code)}")
+        await state.clear()
         return
-    lesson_id = command.args
+    lesson = lesson[0]
     students = db.get_students_for_lesson(lesson_id)
+    if not students:
+        await message.answer(f"{localization.get_text('nobody_registered', message.from_user.language_code)}\n📆 <b>{timeformat.reformat_datetime_to(lesson[1], '%Y-%m-%dT%H:%M:%S', '%d.%m')} ({localization.get_text(timeformat.get_weekday(lesson[1]).lower(), message.from_user.language_code)})</b>\n{lessonformat.formate_lesson(lesson, message.from_user.language_code)}")
+        await state.clear()
+        return
     formated_students = lessonformat.format_students_for_lesson(students, message.from_user.language_code)
-    await message.answer(formated_students)
+    await message.answer(f"📆 <b>{timeformat.reformat_datetime_to(lesson[1], '%Y-%m-%dT%H:%M:%S', '%d.%m')} ({localization.get_text(timeformat.get_weekday(lesson[1]).lower(), message.from_user.language_code)})</b>\n{lessonformat.formate_lesson(lesson, message.from_user.language_code)}\n{formated_students}")
+    await state.clear()
 
 
 @router.message(StateFilter(None), Command("remove"))  # TODO: сделать нормальное определение ошибок.не удалять что попало

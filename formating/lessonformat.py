@@ -57,9 +57,9 @@ def format_schedule_by_day(schedule, language, available_spots=True):
 
 def format_students_for_lesson(students, language):
     formated_string = f"{localization.get_text('list_of_students', language)}\n"
-    formated_string += f"{localization.get_text('student_id', language):<18}{localization.get_text('student_name', language):<5}{localization.get_text('student_surname', language)}\n"
+    # formated_string += f"{localization.get_text('student_id', language):<18}{localization.get_text('student_name', language):<5}{localization.get_text('student_surname', language)}\n"
     for student in students:
         # u.id, u.name, u.surname, l.id, l.lessonname, l.datetime, l.maxstudents
-        student_id, name, surname, lesson_id, lesson_name, lesson_datetime, max_students = student
-        formated_string += f"\n{student_id:} {name:} {surname}"
+        student_id, name, surname, username, lesson_id, lesson_name, lesson_datetime, max_students = student
+        formated_string += f"\n{student_id:} {name:} {surname} @{username}"
     return formated_string
