@@ -182,7 +182,7 @@ async def send_max_number(
 @router.message(SendTimetable.sending_timetable, F.document)
 async def download_timetable(message: Message, state: FSMContext):
     document = message.document
-    if document.mime_type == 'text/csv':
+    if document.mime_type == 'text/csv' or document.mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
         file_info = await message.bot.get_file(document.file_id)
         file_path = file_info.file_path
 
@@ -191,12 +191,12 @@ async def download_timetable(message: Message, state: FSMContext):
             async with session.get(file_url, ssl=False) as response:
                 if response.status == 200:
                     file_data = await response.read()
-                    res = db.add_timetable(file_data)
+                    res = db.add_timetable(document.mime_type, file_data)
                     if res != 'ok':
                         await message.reply(f"{localization.get_text('error', message.from_user.language_code)}{res}")
                     else:
                         await message.reply(localization.get_text('timetable_added', message.from_user.language_code))
-                        await state.clear()
+                    await state.clear()
                 else:
                     await message.reply(f"{localization.get_text('error', message.from_user.language_code)}{localization.get_text('loading_error', message.from_user.language_code)}")
     else:

@@ -42,9 +42,18 @@ def is_iso_format(date_string):
         datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S')
         datetime.fromisoformat(date_string)
         return True
-    except ValueError:
+    except (ValueError, TypeError):
         return False
 
+
+def check_format(date_string, format):
+    print(date_string)
+    print(format)
+    try:
+        datetime.strptime(date_string, format)
+        return True
+    except (ValueError, TypeError):
+        return False
 
 def check_24hours(event_date_str):
     tz = pytz.timezone('Europe/Bratislava')

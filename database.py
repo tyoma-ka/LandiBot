@@ -1,8 +1,9 @@
 import sqlite3
 import pandas as pd
-from datetime import datetime, timezone, timedelta
+import openpyxl
+from datetime import datetime, timezone, timedelta, time
 from formating import timeformat
-from io import StringIO
+from io import StringIO, BytesIO
 from localization import localization
 
 from handlers import teacher
@@ -14,7 +15,7 @@ def check_positive_integer(integer):
         if int(integer) > 0:
             return True
         return False
-    except ValueError:
+    except (ValueError, TypeError):
         return False
 
 
@@ -101,24 +102,48 @@ class Database:
             event[3] = event[3] - self.count_registrations_for_lesson(event[0])
         return filtered_events
 
-    def add_timetable(self, file_data: str):
-        csv_data = file_data.decode('utf-8')
-        csv_string_io = StringIO(csv_data)
-        df = pd.read_csv(csv_string_io)
-        df.columns = df.columns.str.strip()
-        lessons = df.values.tolist()
-        for lesson in lessons:
-            lesson = lesson[0].split(";")
-            if len(lesson) != 3:
-                return 'wrongFormat'
-            lesson_datetime = lesson[0]
-            lesson_name = lesson[1]
-            max_students = lesson[2]
-            if self.get_lesson(lesson_datetime, lesson_name):
-                continue
-            res = self.add_lesson(lesson_datetime, lesson_name, max_students)
-            if res != 'ok':
-                return res
+    def add_timetable(self, format: str, file_data: str):
+        if format == 'text/csv':
+            csv_data = file_data.decode('utf-8')
+            csv_string_io = StringIO(csv_data)
+            df = pd.read_csv(csv_string_io)
+            df.columns = df.columns.str.strip()
+            lessons = df.values.tolist()
+            for lesson in lessons:
+                lesson = lesson[0].split(";")
+                if len(lesson) != 3:
+                    return 'wrongFormat'
+                lesson_datetime = lesson[0]
+                lesson_name = lesson[1]
+                max_students = lesson[2]
+                if self.get_lesson(lesson_datetime, lesson_name):
+                    continue
+                res = self.add_lesson(lesson_datetime, lesson_name, max_students)
+                if res != 'ok':
+                    return res
+        elif format == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+            file_stream = BytesIO(file_data)
+            workbook = openpyxl.load_workbook(file_stream)
+            sheet = workbook.active
+            for row in sheet.iter_rows(min_row=2, values_only=True):  # Пропускаем заголовок
+                if len(row) != 4:
+                    return 'wrong number of rows'
+                lesson_date, lesson_time, lesson_name, max_participants = row
+                if not isinstance(lesson_date, datetime):
+                    return 'wrong date format'
+                if not isinstance(lesson_time, time):
+                    return 'wrong time format'
+                if lesson_name is None:
+                    return 'wrong lesson name format'
+                if not check_positive_integer(max_participants):
+                    return 'wrong max participants number format'
+                combined_datetime = datetime.combine(lesson_date, lesson_time)
+                formatted_datetime = combined_datetime.strftime("%Y-%m-%dT%H:%M:%S")
+                if self.get_lesson(formatted_datetime, lesson_name):
+                    continue
+                res = self.add_lesson(formatted_datetime, lesson_name, max_participants)
+                if res != 'ok':
+                    return res
         return 'ok'
 
     def check_teacher_by_id(self, user_id: int):
@@ -181,8 +206,9 @@ class Database:
         if not data:
             return "no user error"
         name, surname, username, regdate = data[0][1], data[0][2], data[0][4], data[0][5]
-        self.sql.execute("INSERT INTO leftusers (id, name, surname, regdate, username, leavedate) VALUES (?, ?, ?, ?, ?, ?)",
-                         (user_id, name, surname, username, regdate, dt_bratislava))
+        self.sql.execute(
+            "INSERT INTO leftusers (id, name, surname, regdate, username, leavedate) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, name, surname, username, regdate, dt_bratislava))
         self.db.commit()
         self.sql.execute(f"DELETE FROM users WHERE id = '{user_id}'")
         self.db.commit()
