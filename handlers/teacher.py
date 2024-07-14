@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.filters import BaseFilter
 from aiogram.filters import Command, StateFilter, CommandObject
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, ReplyKeyboardRemove, ContentType, CallbackQuery
+from aiogram.types import Message, ReplyKeyboardRemove, ContentType, CallbackQuery, InlineKeyboardMarkup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.storage.base import StorageKey
 
@@ -44,6 +44,11 @@ class ChooseWeekday(StatesGroup):
 class ChooseLessonNumber(StatesGroup):
     choosing_lesson_number = State()
     delete_lesson_number = State()
+
+
+class RemoveStudent(StatesGroup):
+    choosing_lesson_number = State()
+    choosing_student_number = State()
 
 
 class ShowStudentsForLesson(StatesGroup):
@@ -235,15 +240,17 @@ async def kick(
 @router.message(StateFilter(None), TextFilter('timetable'))
 @router.message(StateFilter(None), Command("timetable"))
 async def cmd_view_timetable(message: Message):
-    data = lessonformat.format_schedule_by_day(db.get_timetable_by_week(), message.from_user.language_code)
+    data = f"{localization.get_text('current_week', message.from_user.language_code)}👇\n"
+    data += lessonformat.format_schedule_by_day(db.get_timetable_by_week(), message.from_user.language_code)
     # one more week forward
+    data += f"{localization.get_text('next_week', message.from_user.language_code)}👇\n"
     data += lessonformat.format_schedule_by_day(db.get_timetable_by_week(1), message.from_user.language_code)
     await message.answer(
-        f"{localization.get_text('teacher_timetable', message.from_user.language_code)}\n{data}")
+        f"{localization.get_text('teacher_timetable', message.from_user.language_code)}\n\n{data}")
 
 
 @router.message(StateFilter(None), TextFilter('students_for_lesson'))
-@router.message(StateFilter(None), Command("show"))  # TODO: сделать нормальное определение ошибок.не показывать что попало
+@router.message(StateFilter(None), Command("show"))
 async def cmd_get_students_for_lesson(
         message: Message,
         state: FSMContext):
@@ -256,17 +263,6 @@ async def get_students_for_lesson(
         message: Message,
         state: FSMContext):
     lesson_id = message.text
-
-    # lesson = db.get_lesson_by_id(lesson_id)
-    #     if not lesson:
-    #         await message.answer(f"{localization.get_text('wrong_lesson_id', message.from_user.language_code)}")
-    #         return
-    #     lesson = lesson[0]
-    #     storage_data = {"lesson": lesson}
-    #     await state.update_data(storage_data)
-    #     await message.answer(
-    #             text=f"{localization.get_text('are_you_sure_delete_lesson', message.from_user.language_code)}\n📆 {localization.get_text(timeformat.get_weekday(lesson[1]).lower(), message.from_user.language_code)}\n{lessonformat.formate_lesson(lesson, message.from_user.language_code)}",
-    #             reply_markup=kb_user.make_yes_no_keyboard(message.from_user.language_code))
     lesson = db.get_lesson_by_id(lesson_id)
     if not lesson:
         await message.answer(f"{localization.get_text('wrong_lesson_id', message.from_user.language_code)}")
@@ -283,20 +279,57 @@ async def get_students_for_lesson(
     await state.clear()
 
 
-@router.message(StateFilter(None), Command("remove"))  # TODO: сделать нормальное определение ошибок.не удалять что попало
+@router.message(StateFilter(None), TextFilter('remove_student_from_lesson'))
+@router.message(StateFilter(None), Command("remove"))
 async def cmd_remove_student_from_lesson(
         message: Message,
-        command: CommandObject):
-    if command.args is None:
-        await message.answer(f"{localization.get_text('wrong_format_remove_student_id_and_lesson', message.from_user.language_code)}")
+        state: FSMContext):
+    await message.answer(f"{localization.get_text('remove_lesson_id', message.from_user.language_code)}")
+    await state.set_state(RemoveStudent.choosing_lesson_number)
+
+
+@router.message(RemoveStudent.choosing_lesson_number)
+async def lesson_id_for_remove(
+        message: Message,
+        state: FSMContext):
+    lesson_id = message.text
+    if not lesson_id.isdigit():
+        await message.answer(localization.get_text('wrong_lesson_id', message.from_user.language_code))
+        await state.clear()
         return
-    data = command.args.split()
-    if len(data) != 2:
-        await message.answer(f"{localization.get_text('wrong_format_remove_student_id_and_lesson', message.from_user.language_code)}")
+
+    lesson = db.get_lesson_by_id(lesson_id)
+    if not lesson:
+        await message.answer(f"{localization.get_text('wrong_lesson_id', message.from_user.language_code)}")
+        await state.clear()
         return
-    lesson_id, student_id = data
-    db.remove_student_from_lesson(student_id, lesson_id)
-    await message.answer(f"{localization.get_text('student_successfully_removed1', message.from_user.language_code)} {student_id} {localization.get_text('student_successfully_removed2', message.from_user.language_code)} {lesson_id}")
+
+    lesson = lesson[0]
+    storage_data = {"lesson_id": lesson_id}
+    await state.update_data(storage_data)
+    students = db.get_students_for_lesson(lesson_id)
+    if not students:
+        await message.answer(
+            f"{localization.get_text('nobody_registered', message.from_user.language_code)}\n📆 <b>{timeformat.reformat_datetime_to(lesson[1], '%Y-%m-%dT%H:%M:%S', '%d.%m')} ({localization.get_text(timeformat.get_weekday(lesson[1]).lower(), message.from_user.language_code)})</b>\n{lessonformat.formate_lesson(lesson, message.from_user.language_code)}")
+        await state.clear()
+        return
+    ids = [str(student[0]) for student in students]
+    await message.answer(text=f"{localization.get_text('remove_student_id', message.from_user.language_code)}\n📆 <b>{timeformat.reformat_datetime_to(lesson[1], '%Y-%m-%dT%H:%M:%S', '%d.%m')} ({localization.get_text(timeformat.get_weekday(lesson[1]).lower(), message.from_user.language_code)})</b>\n{lessonformat.formate_lesson(lesson, message.from_user.language_code)}\n\n{lessonformat.format_students_for_lesson(students, message.from_user.language_code)}",
+                         reply_markup=kb_user.get_student_ids_keyboard(ids))
+    await state.set_state(RemoveStudent.choosing_student_number)
+
+
+@router.callback_query(RemoveStudent.choosing_student_number)
+async def student_id_for_remove(
+        callback: CallbackQuery,
+        state: FSMContext):
+    storage_data = await state.get_data()
+    lesson_id = storage_data["lesson_id"]
+    db.remove_student_from_lesson(callback.data, lesson_id)
+    await callback.message.answer(
+        f"{localization.get_text('student_successfully_removed1', callback.from_user.language_code)} {callback.data} {localization.get_text('student_successfully_removed2', callback.from_user.language_code)} {lesson_id}")
+    await callback.answer()
+    await state.clear()
 
 
 @router.message(StateFilter(None), TextFilter('remove_day'))
@@ -373,7 +406,7 @@ async def cmd_choose_lesson(
     storage_data = {"lesson": lesson}
     await state.update_data(storage_data)
     await message.answer(
-        text=f"{localization.get_text('are_you_sure_delete_lesson', message.from_user.language_code)}\n📆 {localization.get_text(timeformat.get_weekday(lesson[1]).lower(), message.from_user.language_code)}\n{lessonformat.formate_lesson(lesson, message.from_user.language_code)}",
+        text=f"{localization.get_text('are_you_sure_delete_lesson', message.from_user.language_code)}\n📆 <b>{timeformat.reformat_datetime_to(lesson[1], '%Y-%m-%dT%H:%M:%S', '%d.%m')} ({localization.get_text(timeformat.get_weekday(lesson[1]).lower(), message.from_user.language_code)})</b>\n{lessonformat.formate_lesson(lesson, message.from_user.language_code)}",
         reply_markup=kb_user.make_yes_no_keyboard(message.from_user.language_code))
     await state.set_state(ChooseLessonNumber.delete_lesson_number)
 

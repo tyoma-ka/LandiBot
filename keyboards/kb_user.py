@@ -72,6 +72,9 @@ def make_teacher_keyboard(language) -> ReplyKeyboardMarkup:
             text=localization.get_text('info', language),
             callback_data="info"),
         KeyboardButton(
+            text=localization.get_text('remove_student_from_lesson', language),
+            callback_data="remove_student_from_lesson"),
+        KeyboardButton(
             text=localization.get_text('cancel_name2', language),
             callback_data="cancel")
     )
@@ -96,6 +99,15 @@ def get_weekdays_keyboard(events, language) -> InlineKeyboardMarkup:
     buttons = [InlineKeyboardButton(
         text=localization.get_text(day.lower(), language),
         callback_data=day.lower()) for day in weekdays]
+    row_size = 2
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[buttons[i:i + row_size] for i in range(0, len(buttons), row_size)])
+    return keyboard
+
+
+def get_student_ids_keyboard(student_ids) -> InlineKeyboardMarkup:
+    buttons = [InlineKeyboardButton(
+        text=id,
+        callback_data=id) for id in student_ids]
     row_size = 2
     keyboard = InlineKeyboardMarkup(inline_keyboard=[buttons[i:i + row_size] for i in range(0, len(buttons), row_size)])
     return keyboard

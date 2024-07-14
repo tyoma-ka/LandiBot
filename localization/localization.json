@@ -115,7 +115,12 @@
         "write_max_students": "Напишите новое максимальное количество студентов на занятие",
         "idk": "Я ещё не знаю, как ответить на эту команду \uD83D\uDC7E",
         "nobody_registered": "Никто ещё не записался на данное занятие",
-        "students_for_lesson": "Студенты на занятие"
+        "students_for_lesson": "Студенты на занятие",
+        "remove_lesson_id": "Напишите номер занятия",
+        "remove_student_id": "Выберите студента, которого хотите удалить с данного занятия",
+        "remove_student_from_lesson": "Удалить студента с занятия",
+        "current_week": "Текущая неделя",
+        "next_week": "Следующая неделя"
     },
     "sk": {
         "hey_teacher": "<b>Ahoj, učiteľ!</b> Som bot pre zapisovanie na hodiny! Tu sú moje príkazy:\n\n<b>/timetable</b> – zobraziť rozvrh,\n<b>/add_timetable</b> – pridať rozvrh,\n<b>/students</b> – zobraziť zoznam študentov,\n<b>/kick {id študenta}</b> – odstrániť študenta z databázy (neodstráni jeho registrácie na hodiny),\n<b>/show</b> – zobraziť zoznam zaregistrovaných študentov na konkrétnu hodinu,\n<b>/remove {číslo hodiny} {id študenta}</b> – odstrániť registráciu študenta na konkrétnu hodinu,\n<b>/remove_day</b> – odstrániť hodiny z rozvrhu za určitý deň,\n<b>/delete_account</b> - odstrániť účet",
@@ -233,7 +238,12 @@
         "write_max_students": "Napíšte nový maximálny počet študentov na hodinu",
         "idk": "Zatiaľ neviem, ako na tento príkaz reagovať \uD83D\uDC7E",
         "nobody_registered": "Nikto sa ešte nezaregistroval na toto cvičenie",
-        "students_for_lesson": "Študenti na cvičenie"
+        "students_for_lesson": "Študenti na cvičenie",
+        "remove_lesson_id": "Napíšte číslo cvičenia",
+        "remove_student_id": "Vyberte študenta, ktorého chcete odstrániť z cvičenia",
+        "remove_student_from_lesson": "Odstrániť študenta zo cvičenia",
+        "current_week": "Aktuálny týždeň",
+        "next_week": "Nasledujúci týždeň"
     }
 
 }
