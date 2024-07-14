@@ -237,6 +237,7 @@ async def kick(
         await message.answer(f"{localization.get_text('user_has_been_deleted', message.from_user.language_code)} {user_id}")
 
 
+
 @router.message(StateFilter(None), TextFilter('timetable'))
 @router.message(StateFilter(None), Command("timetable"))
 async def cmd_view_timetable(message: Message):
